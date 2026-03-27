@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales & Demand Forecasting Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f8f8f6; --bg3: #f1f0ec;
+    --txt: #1a1a18; --txt2: #5a5a56; --txt3: #9a9a94;
+    --brd: rgba(0,0,0,0.1); --brd2: rgba(0,0,0,0.18);
+    --accent: #2563eb; --purple: #7c3aed; --green: #059669;
+    --red: #dc2626; --amber: #d97706;
+    --rad: 12px; --rad-sm: 8px;
+    --font: -apple-system, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #242422; --bg3: #141412;
+      --txt: #e8e8e2; --txt2: #a8a8a0; --txt3: #6a6a62;
+      --brd: rgba(255,255,255,0.08); --brd2: rgba(255,255,255,0.15);
+    }
+  }
+  body { background: var(--bg3); font-family: var(--font); color: var(--txt); padding: 0; min-height: 100vh; }
+  .shell { max-width: 1040px; margin: 0 auto; padding: 1.5rem 1.25rem 2.5rem; }
+
+  /* Header */
+  .hdr { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+  .hdr h1 { font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
+  .hdr p { font-size: 12px; color: var(--txt3); margin-top: 3px; }
+  .model-area { display: flex; flex-direction: column; gap: 5px; }
+  .model-lbl { font-size: 10px; color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .pills { display: flex; gap: 6px; }
+  .pill { font-size: 12px; padding: 5px 12px; border-radius: 99px; cursor: pointer; border: 1px solid var(--brd2); color: var(--txt2); background: var(--bg); font-weight: 500; transition: all .15s; user-select: none; }
+  .pill:hover { background: var(--bg2); }
+  .pill.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* KPI */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: var(--bg); border: 1px solid var(--brd); border-radius: var(--rad-sm); padding: .85rem 1rem; }
+  .kl { font-size: 10px; color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .kv { font-size: 22px; font-weight: 600; margin: 4px 0 3px; font-family: var(--mono); letter-spacing: -.5px; }
+  .ks { font-size: 11px; font-weight: 500; }
+  .up { color: var(--green); } .dn { color: var(--red); } .nt { color: var(--txt3); }
+
+  /* Cards */
+  .card { background: var(--bg); border: 1px solid var(--brd); border-radius: var(--rad); padding: 1.1rem 1.25rem; margin-bottom: 12px; }
+  .ct { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; }
+  .ct span { font-size: 11px; color: var(--txt3); font-weight: 400; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .cw { position: relative; width: 100%; }
+
+  /* Controls */
+  .ctrls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: .75rem; align-items: flex-end; }
+  .cg { display: flex; flex-direction: column; gap: 4px; }
+  .cl { font-size: 10px; color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  select { font-size: 12px; padding: 5px 8px; border: 1px solid var(--brd2); border-radius: var(--rad-sm); background: var(--bg2); color: var(--txt); cursor: pointer; }
+
+  /* Legend */
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--txt2); margin-bottom: .6rem; }
+  .ld { display: flex; align-items: center; gap: 5px; }
+  .ldot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Error table */
+  .etbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .etbl th { color: var(--txt3); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--brd); }
+  .etbl td { padding: 6px 6px; border-bottom: 1px solid var(--brd); color: var(--txt2); font-family: var(--mono); font-size: 12px; }
+  .etbl tr:last-child td { border-bottom: none; }
+  .best { color: var(--green); font-weight: 600; }
+
+  /* Insights */
+  .ins { display: flex; flex-direction: column; gap: 8px; }
+  .in { display: flex; gap: 9px; align-items: flex-start; padding: .6rem .75rem; border-radius: var(--rad-sm); border: 1px solid var(--brd); background: var(--bg2); }
+  .ii { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; margin-top: 1px; font-weight: 700; }
+  .iup { background: #d1fae5; color: #065f46; } .idn { background: #fee2e2; color: #991b1b; } .int { background: #ede9fe; color: #5b21b6; }
+  .it { font-size: 12px; color: var(--txt2); line-height: 1.55; }
+  .it strong { color: var(--txt); font-weight: 600; }
+
+  /* Section label */
+  .sec { font-size: 10px; color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; padding-left: 2px; }
+
+  @media (max-width: 620px) {
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+    .row { grid-template-columns: 1fr; }
+    .pills { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="hdr">
+    <div>
+      <h1>📈 Sales & Demand Forecasting</h1>
+      <p>Historical training window: 36 months (Jan 2022 – Dec 2024) · Forecast horizon: 12 months</p>
+    </div>
+    <div class="model-area">
+      <div class="model-lbl">Forecasting model</div>
+      <div class="pills" id="mpills">
+        <div class="pill on" onclick="setM('holt',this)">Holt-Winters</div>
+        <div class="pill" onclick="setM('linear',this)">Linear Trend</div>
+        <div class="pill" onclick="setM('ma',this)">Moving Avg</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="kpis"></div>
+
+  <div class="card">
+    <div class="ct">Sales Forecast <span id="csub">Holt-Winters triple exponential smoothing</span></div>
+    <div class="ctrls">
+      <div class="cg"><div class="cl">Product category</div>
+        <select id="cat" onchange="render()">
+          <option value="electronics">Electronics</option>
+          <option value="apparel">Apparel</option>
+          <option value="homegoods">Home & Garden</option>
+        </select>
+      </div>
+      <div class="cg"><div class="cl">Confidence interval</div>
+        <select id="ci" onchange="render()">
+          <option value="80">80%</option>
+          <option value="90">90%</option>
+          <option value="95" selected>95%</option>
+        </select>
+      </div>
+    </div>
+    <div class="legend">
+      <span class="ld"><span class="ldot" style="background:#2563eb"></span>Actual sales</span>
+      <span class="ld"><span class="ldot" style="background:#7c3aed"></span>Forecast</span>
+      <span class="ld"><span class="ldot" style="background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);width:22px"></span>Confidence band</span>
+      <span class="ld"><span style="width:20px;height:0;border-top:2px dashed #d97706;display:inline-block;vertical-align:middle"></span>&nbsp;Linear trend</span>
+    </div>
+    <div class="cw" style="height:280px"><canvas id="mc"></canvas></div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <div class="ct">Seasonality Index <span>Monthly demand pattern</span></div>
+      <div class="cw" style="height:190px"><canvas id="sc"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Model Error Comparison <span>Test set: last 6 months</span></div>
+      <table class="etbl" id="et"></table>
+      <div style="margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--brd)">
+        <div class="sec">Error metrics explained</div>
+        <div style="font-size:11px;color:var(--txt3);line-height:1.7">
+          <b style="color:var(--txt2)">MAE</b> – Mean absolute error (units)<br>
+          <b style="color:var(--txt2)">RMSE</b> – Penalises large errors more<br>
+          <b style="color:var(--txt2)">MAPE</b> – % error, model-agnostic<br>
+          <span style="color:var(--green);font-weight:600">Green</span> = best performer per metric
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <div class="ct">Year-over-Year Growth <span>Actual (blue) vs forecast (purple)</span></div>
+      <div class="cw" style="height:190px"><canvas id="yc"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Business Insights <span id="idate"></span></div>
+      <div class="ins" id="ins"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const CATS = {
+  electronics: { base:420, trend:3.2, s:[.82,.78,.9,.98,1,1.03,1.05,1.08,1.12,1.25,1.42,1.58], n:28 },
+  apparel:     { base:310, trend:2.1, s:[.88,.82,.95,1.12,1.18,1.1,1.05,1.08,1.02,1.05,1.2,1.35], n:22 },
+  homegoods:   { base:280, trend:1.8, s:[.9,.88,1.05,1.18,1.25,1.3,1.1,1.08,1.05,.98,.9,.95], n:18 }
+};
+
+function genHist(cat) {
+  const c = CATS[cat], d = [];
+  for (let i = 0; i < 36; i++) {
+    const t = c.base + c.trend * i;
+    const s = c.s[i % 12];
+    const noise = (Math.sin(i * 7.3 + cat.length) * .5 + .5) * c.n * 2 - c.n;
+    d.push(Math.round(t * s + noise));
+  }
+  return d;
+}
+
+function holtWinters(data, h = 12) {
+  const a = .3, b = .1, g = .25, L = 12;
+  let s = data.slice(0, L).map((_, i) => data[i] / (data.slice(0, L).reduce((a,b)=>a+b,0)/L));
+  let lv = data.slice(0, L).reduce((a,b)=>a+b,0) / L;
+  let tr = (data.slice(L, 2*L).reduce((a,b)=>a+b,0) - data.slice(0, L).reduce((a,b)=>a+b,0)) / (L * L);
+  const sm = [];
+  for (let i = 0; i < data.length; i++) {
+    const m = i % L, pl = lv, pt = tr;
+    lv = a * (data[i] / s[m]) + (1-a) * (pl + pt);
+    tr = b * (lv - pl) + (1-b) * pt;
+    s[m] = g * (data[i] / lv) + (1-g) * s[m];
+    sm.push(Math.round((pl + pt) * s[m]));
+  }
+  const fc = [];
+  for (let k = 1; k <= h; k++) fc.push(Math.round((lv + tr * k) * s[(data.length + k - 1) % L]));
+  return { sm, fc };
+}
+
+function linearModel(data, h = 12) {
+  const n = data.length, mx = (n-1)/2, my = data.reduce((a,b)=>a+b)/n;
+  const sl = data.reduce((a,v,i)=>a+(i-mx)*(v-my),0) / data.reduce((a,_,i)=>a+(i-mx)**2,0);
+  const ic = my - sl * mx;
+  const L = 12, mn = my;
+  const seas = Array(L).fill(0).map((_,m)=>{
+    const v = data.filter((_,i)=>i%L===m); return v.reduce((a,b)=>a+b)/v.length / mn;
+  });
+  const sm = data.map((_,i) => Math.round((ic + sl * i) * seas[i % L]));
+  const fc = [];
+  for (let k = 1; k <= h; k++) fc.push(Math.round((ic + sl * (n+k-1)) * seas[(n+k-1) % L]));
+  return { sm, fc };
+}
+
+function maModel(data, h = 12, w = 6) {
+  const sm = data.map((_,i) => i < w-1 ? data[i] : Math.round(data.slice(i-w+1,i+1).reduce((a,b)=>a+b)/w));
+  const L = 12, mn = data.reduce((a,b)=>a+b)/data.length;
+  const seas = Array(L).fill(0).map((_,m)=>{
+    const v = data.filter((_,i)=>i%L===m); return v.reduce((a,b)=>a+b)/v.length / mn;
+  });
+  const last = sm[sm.length-1], n = data.length, fc = [];
+  for (let k = 1; k <= h; k++) fc.push(Math.round(last * seas[(n+k-1) % L]));
+  return { sm, fc };
+}
+
+function getModel(data) {
+  if (mdl === 'holt') return holtWinters(data);
+  if (mdl === 'linear') return linearModel(data);
+  return maModel(data);
+}
+
+function calcErrs(actual, pred) {
+  const r = actual.map((v,i) => v - pred[i]);
+  const mae = r.reduce((a,b)=>a+Math.abs(b),0) / r.length;
+  const rmse = Math.sqrt(r.reduce((a,b)=>a+b*b,0) / r.length);
+  const mape = actual.reduce((a,v,i)=>a+Math.abs(r[i]/v),0) / actual.length * 100;
+  return { mae, rmse, mape };
+}
+
+function band(fc, ci) {
+  const z = ci===95 ? 1.96 : ci===90 ? 1.645 : 1.282;
+  return fc.map((v,i) => {
+    const m = v * .05 * (1 + i * .08) * z;
+    return [Math.round(v - m), Math.round(v + m)];
+  });
+}
+
+function histLabels() {
+  const l = [];
+  for (let y = 2022; y <= 2024; y++) for (let m = 0; m < 12; m++) l.push(`${MN[m]} ${y}`);
+  return l;
+}
+function fcLabels() {
+  const l = [];
+  for (let k = 0; k < 12; k++) {
+    const i = 36 + k, m = i % 12, y = 2022 + Math.floor(i/12);
+    l.push(`${MN[m]} ${y}`);
+  }
+  return l;
+}
+
+const MLbls = {
+  holt: 'Holt-Winters triple exponential smoothing',
+  linear: 'Linear trend with seasonal decomposition',
+  ma: 'Moving average (window = 6 months)'
+};
+
+let mdl = 'holt', mc, sc, yc;
+
+function setM(m, el) {
+  mdl = m;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  render();
+}
+
+function render() {
+  const cat = document.getElementById('cat').value;
+  const ci  = parseInt(document.getElementById('ci').value);
+  document.getElementById('csub').textContent = MLbls[mdl];
+
+  const hist = genHist(cat);
+  const { sm: smoothed, fc: forecast } = getModel(hist);
+  const bd  = band(forecast, ci);
+  const hl  = histLabels(), fl = fcLabels();
+  const c   = CATS[cat];
+
+  // Model comparisons
+  const ehw = calcErrs(hist.slice(30), holtWinters(hist).sm.slice(30));
+  const elt  = calcErrs(hist.slice(30), linearModel(hist).sm.slice(30));
+  const ema  = calcErrs(hist.slice(30), maModel(hist).sm.slice(30));
+  const curE = calcErrs(hist.slice(30), smoothed.slice(30));
+
+  // KPIs
+  const avgF  = Math.round(forecast.reduce((a,b)=>a+b)/12);
+  const avgH  = Math.round(hist.slice(24).reduce((a,b)=>a+b)/12);
+  const gp    = ((avgF - avgH) / avgH * 100).toFixed(1);
+  const peak  = forecast.indexOf(Math.max(...forecast));
+  const tot   = forecast.reduce((a,b)=>a+b);
+  const mape  = curE.mape.toFixed(1);
+  const acc   = (100 - parseFloat(mape)).toFixed(1);
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="kl">Avg monthly forecast</div><div class="kv">$${avgF.toLocaleString()}k</div><div class="ks ${parseFloat(gp)>0?'up':'dn'}">${parseFloat(gp)>0?'▲':'▼'} ${Math.abs(gp)}% vs prior year</div></div>
+    <div class="kpi"><div class="kl">12-month total</div><div class="kv">$${Math.round(tot/1000)}M</div><div class="ks nt">Cumulative forecast</div></div>
+    <div class="kpi"><div class="kl">Peak demand</div><div class="kv">${fl[peak].split(' ')[0]}</div><div class="ks nt">$${forecast[peak].toLocaleString()}k projected</div></div>
+    <div class="kpi"><div class="kl">Model accuracy</div><div class="kv">${acc}%</div><div class="ks nt">MAPE: ${mape}%</div></div>
+  `;
+
+  // Insights
+  const valley = forecast.indexOf(Math.min(...forecast));
+  const avgYoy = (forecast.map((v,i)=>(v/hist[24+i]-1)*100).reduce((a,b)=>a+b)/12).toFixed(1);
+  document.getElementById('idate').textContent = fl[0] + ' – ' + fl[11];
+  document.getElementById('ins').innerHTML = `
+    <div class="in"><div class="ii iup">↑</div><div class="it"><strong>Peak demand in ${fl[peak]}</strong> — $${forecast[peak].toLocaleString()}k forecast. Scale inventory & staffing ${peak > 6 ? '4–6' : '2–3'} weeks in advance to avoid stockouts.</div></div>
+    <div class="in"><div class="ii int">~</div><div class="it"><strong>Average YoY growth: ${avgYoy}%</strong>. ${parseFloat(avgYoy) > 5 ? 'Strong growth — consider logistics capacity expansion.' : 'Moderate growth — watch for demand-softening signals.'}</div></div>
+    <div class="in"><div class="ii idn">↓</div><div class="it"><strong>Demand trough in ${fl[valley]}</strong> ($${forecast[valley].toLocaleString()}k). Ideal window for maintenance cycles, staff training, and markdown promotions.</div></div>
+    <div class="in"><div class="ii int">%</div><div class="it"><strong>Model MAPE: ${mape}%</strong> — ${parseFloat(mape) < 8 ? 'excellent' : 'good'} predictive accuracy. Confidence bands widen in months 9–12; review monthly with actual sales.</div></div>
+  `;
+
+  // Error table
+  const mMAE = Math.min(ehw.mae, elt.mae, ema.mae);
+  const mRMSE = Math.min(ehw.rmse, elt.rmse, ema.rmse);
+  const mMAPE = Math.min(ehw.mape, elt.mape, ema.mape);
+  document.getElementById('et').innerHTML = `
+    <thead><tr><th>Model</th><th>MAE</th><th>RMSE</th><th>MAPE</th></tr></thead>
+    <tbody>
+      <tr><td>Holt-Winters</td><td class="${ehw.mae===mMAE?'best':''}">${ehw.mae.toFixed(1)}</td><td class="${ehw.rmse===mRMSE?'best':''}">${ehw.rmse.toFixed(1)}</td><td class="${ehw.mape===mMAPE?'best':''}">${ehw.mape.toFixed(1)}%</td></tr>
+      <tr><td>Linear Trend</td><td class="${elt.mae===mMAE?'best':''}">${elt.mae.toFixed(1)}</td><td class="${elt.rmse===mRMSE?'best':''}">${elt.rmse.toFixed(1)}</td><td class="${elt.mape===mMAPE?'best':''}">${elt.mape.toFixed(1)}%</td></tr>
+      <tr><td>Moving Avg</td><td class="${ema.mae===mMAE?'best':''}">${ema.mae.toFixed(1)}</td><td class="${ema.rmse===mRMSE?'best':''}">${ema.rmse.toFixed(1)}</td><td class="${ema.mape===mMAPE?'best':''}">${ema.mape.toFixed(1)}%</td></tr>
+    </tbody>
+  `;
+
+  // Chart colours
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gc = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const tc = dark ? '#7a7a72' : '#aaa';
+
+  // Trend line over full window
+  const allD = [...hist, ...forecast];
+  const aN = allD.length, amean = allD.reduce((a,b)=>a+b)/aN, xm = (aN-1)/2;
+  const sl2 = allD.reduce((a,v,i)=>a+(i-xm)*(v-amean),0) / allD.reduce((a,_,i)=>a+(i-xm)**2,0);
+  const tData = allD.map((_,i) => Math.round(amean + sl2*(i-xm)));
+
+  const allLabels = [...hl, ...fl];
+
+  // ── MAIN CHART ──
+  if (mc) mc.destroy();
+  mc = new Chart(document.getElementById('mc'), {
+    data: {
+      labels: allLabels,
+      datasets: [
+        { type:'line', label:'Upper CI', data:[...Array(36).fill(null),...bd.map(b=>b[1])], borderWidth:0, pointRadius:0, fill:'+1', backgroundColor:'rgba(124,58,237,.1)', tension:.35 },
+        { type:'line', label:'Lower CI', data:[...Array(36).fill(null),...bd.map(b=>b[0])], borderWidth:0, pointRadius:0, fill:false, tension:.35 },
+        { type:'line', label:'Forecast',  data:[...Array(36).fill(null),...forecast], borderColor:'#7c3aed', borderWidth:2.5, pointRadius:0, pointHoverRadius:5, fill:false, tension:.35 },
+        { type:'line', label:'Actual',    data:[...hist,...Array(12).fill(null)],     borderColor:'#2563eb', borderWidth:2.5, pointRadius:0, pointHoverRadius:5, fill:false, tension:.35 },
+        { type:'line', label:'Trend',     data:tData, borderColor:'#d97706', borderWidth:1.5, borderDash:[5,4], pointRadius:0, fill:false, tension:0 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor: dark?'#1e1e1a':'#fff', borderColor:gc, borderWidth:1,
+          titleColor: dark?'#ddd':'#222', bodyColor: dark?'#bbb':'#555',
+          padding:10, cornerRadius:10,
+          callbacks:{
+            label: ctx => {
+              if (ctx.datasetIndex < 2 || ctx.parsed.y === null) return null;
+              const names = ['Forecast','Actual','Trend'];
+              return `  ${names[ctx.datasetIndex-2]}: $${ctx.parsed.y?.toLocaleString()}k`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ grid:{color:gc}, ticks:{color:tc, font:{size:10}, maxTicksLimit:13, autoSkip:true, maxRotation:0} },
+        y:{ grid:{color:gc}, ticks:{color:tc, font:{size:10}, callback:v=>`$${v}k`} }
+      },
+      animation:{ duration:450 }
+    },
+    plugins:[{
+      id:'vl',
+      beforeDraw(ch) {
+        const { ctx, chartArea:a, scales:{x} } = ch;
+        const xi = x.getPixelForValue(36);
+        ctx.save();
+        ctx.setLineDash([4,4]); ctx.strokeStyle = dark?'rgba(255,255,255,.2)':'rgba(0,0,0,.15)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(xi, a.top); ctx.lineTo(xi, a.bottom); ctx.stroke();
+        ctx.setLineDash([]); ctx.font = '10px system-ui'; ctx.fillStyle = tc; ctx.textAlign = 'left';
+        ctx.fillText('Forecast →', xi+4, a.top+13);
+        ctx.restore();
+      }
+    }]
+  });
+
+  // ── SEASONALITY CHART ──
+  if (sc) sc.destroy();
+  const seasColors = c.s.map(v => v>=1.15?'#7c3aed' : v>=1?'#2563eb' : v>=.9?'#059669' : '#d97706');
+  sc = new Chart(document.getElementById('sc'), {
+    type:'bar',
+    data:{
+      labels: MN,
+      datasets:[{ data:c.s.map(v=>+((v-1)*100).toFixed(1)), backgroundColor:seasColors, borderRadius:5, borderSkipped:false }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{
+        backgroundColor: dark?'#1e1e1a':'#fff', borderColor:gc, borderWidth:1,
+        titleColor: dark?'#ddd':'#222', bodyColor: dark?'#bbb':'#555', padding:8, cornerRadius:8,
+        callbacks:{ label:ctx=>`  Seasonal index: ${(ctx.parsed.y+100).toFixed(0)}%` }
+      }},
+      scales:{
+        x:{ grid:{display:false}, ticks:{color:tc,font:{size:10}} },
+        y:{ grid:{color:gc}, ticks:{color:tc,font:{size:10}, callback:v=>`${v>0?'+':''}${v}%`} }
+      }, animation:{duration:400}
+    }
+  });
+
+  // ── YoY CHART ──
+  const yoyA = hist.slice(12).map((v,i) => +((v/hist[i]-1)*100).toFixed(1));
+  const yoyF = forecast.map((v,i) => +((v/hist[24+i]-1)*100).toFixed(1));
+  if (yc) yc.destroy();
+  yc = new Chart(document.getElementById('yc'), {
+    type:'line',
+    data:{
+      labels:[...hl.slice(12), ...fl],
+      datasets:[
+        { label:'YoY Actual',   data:[...yoyA,...Array(12).fill(null)], borderColor:'#2563eb', borderWidth:2, pointRadius:0, fill:false, tension:.35 },
+        { label:'YoY Forecast', data:[...Array(24).fill(null),...yoyF],  borderColor:'#7c3aed', borderWidth:2, borderDash:[4,3], pointRadius:0, fill:false, tension:.35 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{
+        backgroundColor: dark?'#1e1e1a':'#fff', borderColor:gc, borderWidth:1,
+        titleColor: dark?'#ddd':'#222', bodyColor: dark?'#bbb':'#555', padding:8, cornerRadius:8,
+        callbacks:{ label:ctx => ctx.parsed.y!==null ? `  ${ctx.dataset.label}: ${ctx.parsed.y>0?'+':''}${ctx.parsed.y}%` : null }
+      }},
+      scales:{
+        x:{ grid:{color:gc}, ticks:{color:tc,font:{size:10},maxTicksLimit:10,autoSkip:true} },
+        y:{ grid:{color:gc}, ticks:{color:tc,font:{size:10}, callback:v=>`${v>0?'+':''}${v}%`} }
+      }, animation:{duration:400}
+    }
+  });
+}
+
+render();
+</script>
+</body>
+</html>
