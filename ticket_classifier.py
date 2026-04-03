@@ -1,9 +1,4 @@
-"""
-Customer Support Ticket Classification System
-=============================================
-Tools: Python (NLTK / spaCy), Scikit-learn
-Skills: Text preprocessing, NLP classification, priority logic, support analytics
-"""
+
 
 import re
 import json
